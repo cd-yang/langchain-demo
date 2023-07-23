@@ -1,23 +1,27 @@
 // import { HumanMessage, ChatMessage, SystemMessage } from "langchain/schema";
 import { LLMChain } from "langchain/chains";
+import { z } from "zod";
 import {
-    ChatPromptTemplate,
-    SystemMessagePromptTemplate,
-    HumanMessagePromptTemplate,
-    MessagesPlaceholder,
     PromptTemplate
 } from "langchain/prompts";
 import { StructuredOutputParser, } from 'langchain/output_parsers'
 import { chat } from './llm.js';
 
 
-// With a `StructuredOutputParser` we can define a schema for the output.
-const structuredOutputParser = StructuredOutputParser.fromNamesAndDescriptions({
-    answer: "answer to the user's question",
-    source: "source used to answer the user's question, should be a website.",
-});
+// const structuredOutputParser = StructuredOutputParser.fromNamesAndDescriptions({
+//     answer: "answer to the user's question",
+//     source: "source used to answer the user's question, should be a website.",
+// });
+const parser = StructuredOutputParser.fromZodSchema(
+    z.object({
+        answer: z.string().describe("answer to the user's question"),
+        sources: z
+            .array(z.string())
+            .describe("sources used to answer the question, should be websites."),
+    })
+);
 
-const formatInstructions = structuredOutputParser.getFormatInstructions();
+const formatInstructions = parser.getFormatInstructions();
 console.log('【formatInstructions】: ', formatInstructions, '\n*****');
 
 const prompt = new PromptTemplate({
@@ -37,4 +41,4 @@ const response = await chain.call({
 })
 
 console.log('【response】: ', response.text, '\n*****');
-console.log('【parsed】: ', await structuredOutputParser.parse(response.text), '\n*****');
+console.log('【parsed】: ', await parser.parse(response.text), '\n*****');
