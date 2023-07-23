@@ -1,39 +1,40 @@
-import { ChatOpenAI } from "langchain/chat_models/openai";
-import { HumanMessage, ChatMessage, SystemMessage } from "langchain/schema";
-import dotenv from 'dotenv';
+// import { HumanMessage, ChatMessage, SystemMessage } from "langchain/schema";
 import { LLMChain } from "langchain/chains";
 import {
     ChatPromptTemplate,
     SystemMessagePromptTemplate,
-    HumanMessagePromptTemplate
+    HumanMessagePromptTemplate,
+    MessagesPlaceholder,
+    PromptTemplate
 } from "langchain/prompts";
+import { StructuredOutputParser, } from 'langchain/output_parsers'
+import { chat } from './llm.js';
 
-dotenv.config();
 
-const chat = new ChatOpenAI({
-    temperature: 0,
-    azureOpenAIApiKey: process.env.OPENAI_API_KEY,
-    azureOpenAIApiInstanceName: process.env.AZURE_INSTANCE_NAME,
-    azureOpenAIApiDeploymentName: process.env.AZURE_DEPLOYMENT_ID,
-    azureOpenAIApiVersion: process.env.AZURE_API_VERSION,
+// With a `StructuredOutputParser` we can define a schema for the output.
+const structuredOutputParser = StructuredOutputParser.fromNamesAndDescriptions({
+    answer: "answer to the user's question",
+    source: "source used to answer the user's question, should be a website.",
 });
 
-const template = "You are a helpful assistant that translates {input_language} to {output_language}.";
-const systemMessagePrompt = SystemMessagePromptTemplate.fromTemplate(template);
-const humanTemplate = "{text}";
-const humanMessagePrompt = HumanMessagePromptTemplate.fromTemplate(humanTemplate);
+const formatInstructions = structuredOutputParser.getFormatInstructions();
+console.log('【formatInstructions】: ', formatInstructions, '\n*****');
 
-const chatPrompt = ChatPromptTemplate.fromPromptMessages([systemMessagePrompt, humanMessagePrompt]);
+const prompt = new PromptTemplate({
+    template:
+        "Answer the users question as best as possible.\n{format_instructions}\n{question}\njust output the json string nothing else",
+    inputVariables: ["question"],
+    partialVariables: { format_instructions: formatInstructions },
+});
 
 const chain = new LLMChain({
     llm: chat,
-    prompt: chatPrompt,
+    prompt: prompt,
 });
 
-const result = await chain.call({
-    input_language: "English",
-    output_language: "Japanese",
-    text: "I love programming",
-});
+const response = await chain.call({
+    question: "What is the capital of France?",
+})
 
-console.log(result);
+console.log('【response】: ', response.text, '\n*****');
+console.log('【parsed】: ', await structuredOutputParser.parse(response.text), '\n*****');
